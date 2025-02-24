@@ -2,6 +2,7 @@
 #include <fstream>
 #include <vector>
 #include <algorithm>
+#include <cmath>
 #include "mymath.h"
 #include "potentials.h"
 #include "fd.h"
@@ -21,11 +22,11 @@ int main(int argc, char ** argv){
 	}
 	for(int i = 0; i < steps; i++) {
 		double x=x0+(double)i*dx;
-		finV(i)=finitewell(x,-4,4,2.5);
+		finV(i)=finitewell(x,-3,3,10.2);
 	}
 	for(int i = 0; i < steps; i++) {
 		double x=x0+(double)i*dx;
-		double width=.2;
+		double width=.05+1.5;
 		double innerheight=5.0;
 		pbrecV(i)=pbrectangular(x,-4,4,-width/2,width/2,innerheight);
 	}
@@ -116,5 +117,44 @@ int main(int argc, char ** argv){
 	outfile6<<std::endl;
 	outfile6<<finitediff.eigenvecs<<std::endl;
 
+	x0=-5.0,xn=5.0;
+	dx=(xn-x0)/steps;
+	for(int i = 0; i < 5; i++){
+		for(int j = 0; j < steps; j++) {
+			double x=x0+(double)j*dx;
+			double welldepth=(double)i*.2+0.2;
+			finV(j)=finitewell(x,-3,3,welldepth);
+		}
+		finitediff.compute(1.0,10.0/100.0,finV);
+		double dx = 10.0/100.0;
+		double norm=0.0;
+		for(int j = 0; j < steps; j++){
+			double x=x0+(double)j*dx;
+			norm+=finitediff.eigenvecs(j,0)*finitediff.eigenvecs(j,0)*dx;
+		}
+		norm=std::sqrt(norm);
+		double prob=0.0;
+		for(int j = 0; j < steps; j++){
+			double x=x0+(double)j*dx;
+			if(x<-3||x>3){
+				prob+=dx*(1.0/(norm*norm))*finitediff.eigenvecs(j,0)*finitediff.eigenvecs(j,0);
+			}
+		}
+		std::cout << i << " "<< (double)i*.2+0.2<< " " <<prob << std::endl;
+
+	}
+	std::cout << "Barrier\n";
+
+	for(int i = 0; i < 5; i++){
+	for(int j = 0; j < steps; j++) {
+		double x=x0+(double)j*dx;
+		double width=(double)i*.05+.05;
+		double innerheight=5.0;
+		pbrecV(j)=pbrectangular(x,-4,4,-width/2,width/2,innerheight);
+	}
+	finitediff.compute(1.0,10.0/100.0,pbrecV);
+	std::cout << (double)i*.1+.05 << " " << finitediff.eigenvals(1,1)-finitediff.eigenvals(0,0)<<std::endl;
+	}
+	
 	return 0;
 }
