@@ -3,10 +3,13 @@
 #include "mymath.h"
 #include <array>
 #include <string>
+#include <map>
 
 struct Atom{
 	dmath::vec center;
 	int an;
+
+	static std::map<std::string,int> elements;
 };
 
 struct primitive{
@@ -29,12 +32,17 @@ struct atOrb{
 struct molecule{
 	std::vector<Atom> atoms;
 	std::vector<atOrb> orbitals;
-	int charge;
-	//For now just assume spin=0
-	int spin;
+	int charge=0;
+	//For now just assume spin=1
+	int spin=1;
+
+	int nelec;
 
 	void read(std::string filename);
+	void buildbasis(std::string filename);
 };
+
+
 
 #endif
 
