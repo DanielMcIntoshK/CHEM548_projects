@@ -103,6 +103,8 @@ namespace dmath{
 
 		void findMaxUpperTriangle(dmath::mat & m);
 		void jacobiRotate(dmath::mat & m, dmath::mat & U);
+
+		void sort(dmath::mat & vals, dmath::mat & vecs);
 	private:
 		int maxr, maxc;
 	};

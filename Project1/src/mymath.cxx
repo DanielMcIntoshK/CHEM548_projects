@@ -135,6 +135,9 @@ dmath::mat dmath::JacobiDiagonalizer::diagonalize(dmath::mat m, double threshold
 
 	if(citer>=maxiter) std::cout << "TIMEOUT\n";
 	U=U.transpose();
+
+	sort(m,U);
+
 	return m;
 }
 
@@ -205,5 +208,25 @@ void dmath::JacobiDiagonalizer::jacobiRotate(dmath::mat & m, dmath::mat & U){
 		}
 	}
 
+}
+
+void dmath::JacobiDiagonalizer::sort(dmath::mat & vals, dmath::mat &vecs){
+     
+	for(int i = 0; i < vals.r; i++){
+		double lowestval=vals(i,i);
+		int lowesti=i;
+		for(int j = i+1; j<vals.r; j++){
+			if(vals(j,j)<lowestval){
+				lowestval=vals(j,j);
+				lowesti=j;
+			}
+		}
+		if(i==lowesti) continue;
+
+		std::swap(vals(i,i),vals(lowesti,lowesti));
+		for(int k = 0; k < vecs.r; k++){
+			std::swap(vecs(k,i),vecs(k,lowesti));
+		}
+	}
 }
 
