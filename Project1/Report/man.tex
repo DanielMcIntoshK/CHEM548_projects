@@ -1,0 +1,29 @@
+\documentclass{article}
+
+\input{structure.tex} 
+
+\title{CHEM 548 Project 1\\Finite Difference Method}
+
+\author{Daniel McIntosh} 
+
+
+\begin{document}
+\maketitle
+
+\section*{Code Description}
+The purpose of this project was to implement the finite difference method for solving differential equations and applying them to the one-dimensional Schrodinger equation with various potentials. My implementation of this method can be found publicly available at "$https://github.com/DanielMcIntoshK/CHEM548\_projects$" under the Project 1 folder. To compile the code simply use the following commands from the Project 1 directory:
+
+\begin{lstlisting}
+make
+bin/Project1
+\end{lstlisting}
+
+Building this project should be possible on any computer that contains a c++ compiler as no libraries were used in this project except those found in the c++ standard template library.
+
+It will generate the files "PIB", "FIN", "PBRect", "Harm", "Morse1", and "Morse2" in the Outputs directory (which has already been generated on the github). These files are the results of the particle in a box, finite well, rectangular barrier, harmonic, and Mjorse computations respectively. These files contain space delineated data. The first row is the eigenvalues of the computed states. The rest of the file is a matrix where the columns are the eigenvectors representing the wavefunctions of the associated eigenvalues.
+
+Additionally there is a folder called "reader" which contains a python program that can open these files and graph the first $n$ wavefunctions on top of the potential.
+
+
+
+\end{document}
