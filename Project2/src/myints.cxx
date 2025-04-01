@@ -1,15 +1,21 @@
 #include "myints.h"
 
+
 Integrals::Integrals():primes{2,3,5,7,11,13,17,19,23,29,31,37}{
+	fcalc.load("tabulated.txt");
 }
 
 void Integrals::computeIntegrals(molecule ml){
 	orbs=ml.orbitals;
 	mol=ml;
-
+	
+	std::cout << "CALCULATING OVERLAP\n";
 	computeOverlap();
+	std::cout << "CALCULATING KINETIC\n";
 	computeKinetic();
+	std::cout << "CALCULATING POTENTIAL\n";
 	computePotential();
+	std::cout << "CALCULATING ERIs\n";
 	computeERIs();
 }
 
@@ -22,9 +28,12 @@ void Integrals::computeOverlap(){
 			for(int l=0; l < orbs[j].contraction.size();l++){
 					precalcOverlap.clear();
 					double n1=orbs[i].contraction[k].norm,
-					       n2=orbs[j].contraction[l].norm;
-					S(i,j)+=n1*n2*orbs[i].contraction[k].co*orbs[j].contraction[l].co*
-						computeOverlap_el(orbs[i].contraction[k],orbs[j].contraction[l]);
+				       		n2=orbs[j].contraction[l].norm;
+					double co1=orbs[i].contraction[k].co,
+					       co2=orbs[j].contraction[l].co;
+					double v = computeOverlap_el(orbs[i].contraction[k],orbs[j].contraction[l]);
+					S(i,j)+=n1*n2*co1*co2*v;
+					verbose=false;
 			}}
 		}
 	}
@@ -59,14 +68,18 @@ void Integrals::computePotential(){
 		for(int i = 0; i < S.r;i++){
 			for(int j = 0; j < S.c;j++){
 				nucattract[a](i,j)=0.0;
+				//std::cout << "\nATTEMPTING: " << i <<" "<< j << std::endl;
 				for(int k=0; k < orbs[i].contraction.size();k++){
 				for(int l=0; l < orbs[j].contraction.size();l++){
 					precalcPotential.clear();
 					precalcOverlap.clear();
 					double n1=orbs[i].contraction[k].norm,
 				       		n2=orbs[j].contraction[l].norm;
-					nucattract[a](i,j)+=n1*n2*orbs[i].contraction[k].co*orbs[j].contraction[l].co*
-						computePotential_el(orbs[i].contraction[k],orbs[j].contraction[l],0,mol.atoms[a]);
+					double co1=orbs[i].contraction[k].co,
+					       co2=orbs[j].contraction[l].co;
+					double v=computePotential_el(orbs[i].contraction[k],
+								    orbs[j].contraction[l],0,mol.atoms[a]);
+					nucattract[a](i,j)+=n1*n2*co1*co2*v;
 				}}
 			}
 		}
@@ -77,7 +90,8 @@ void Integrals::computePotential(){
 }
 
 void Integrals::computeERIs(){
-	std::cout << "COMPUTING ERIS\n";
+	precalcK();
+	std::cout << "Ks PRECALCULATED\n";
 	ERIs.resize(orbs.size());
 	for(int i = 0; i < ERIs.size();i++){
 		ERIs[i].resize(i+1);
@@ -93,23 +107,27 @@ void Integrals::computeERIs(){
 		}
 	}
 
-	std::cout << "ATTEMPTING\n";
 	for(int a = 0; a < ERIs.size(); a++){
+		std::cout << a << " " << ERIs.size()<<std::endl;
 	for(int b = 0; b < ERIs[a].size();b++){
 	for(int c = 0; c < ERIs[a][b].size();c++){
 	for(int d = 0; d < ERIs[a][b][c].size();d++){
-		//std::cout << "ATTEMPTING: (" << a<<b<< "|" << c << d << ")"<<std::endl;
 		for(int i = 0; i < orbs[a].contraction.size(); i++){
 		for(int j = 0; j < orbs[b].contraction.size(); j++){
 		for(int k = 0; k < orbs[c].contraction.size(); k++){
 		for(int l = 0; l < orbs[d].contraction.size(); l++){
+			std::vector<int> cr{a,b,c,d,i,j,k,l};
 			precalcERI.clear();
 			primitive ap=orbs[a].contraction[i],
 				bp=orbs[b].contraction[j],
 				cp=orbs[c].contraction[k],
 				dp=orbs[d].contraction[l];
 			double normfull=ap.norm*bp.norm*cp.norm*dp.norm;
-			ERIs[a][b][c][d]+=normfull*ap.co*bp.co*cp.co*dp.co*computeERI_el(ap,bp,cp,dp,0);
+			if(a==0&&b==0&&c==4&&d==4){
+				verbose=true;
+			}
+			ERIs[a][b][c][d]+=normfull*ap.co*bp.co*cp.co*dp.co*computeERI_el(ap,bp,cp,dp,0,cr);
+			verbose=false;
 		}}}}
 	}}}}
 }
@@ -123,221 +141,165 @@ double Integrals::computeOverlap_el(primitive a, primitive b){
 	if(a.l()<0||b.l()<0){
 		return 0;
 	}
-	double sm=a.exp+b.exp;
-	double rd=a.exp*b.exp/sm;
+
 	dmath::vec A=a.at.center,B=b.at.center;
-	
-	dmath::vec P=(a.exp*A+b.exp*B)*(1.0/sm);
+
+	double xi=a.exp+b.exp;
+	double zeta=(1.0/xi)*a.exp*b.exp;
+
 	if(a.l()==0 && b.l()==0){
-		dmath::vec diff=A-B;
-		double dt=diff*diff;
-		return std::pow(mypi/sm,3.0/2.0)*std::exp(-rd*dt);
-	}
-	//recursive
-	unsigned long hv=hash(std::vector<primitive>{a,b});
-	if(precalcOverlap.find(hv)!=precalcOverlap.end()){
-		return precalcOverlap[hv];
+		return std::pow(mypi/xi,3.0/2.0)*std::exp(-zeta*(A-B)*(A-B));
 	}
 
-	bool targeta=a.l()!=0;
-	int dim=0;
-	for(int i = 0; i < 3;i++){
-		if((targeta?a:b).ang[i]>0){
-			dim=i;
-			break;
-		}
+
+	dmath::vec P=1.0/xi*(a.exp*A+b.exp*B);
+
+	std::vector<primitive> np{a,b};
+	if(a.l()==0){
+		std::swap(np[0],np[1]);
+		std::swap(A,B);
 	}
-	//double thexp=(targeta)?a.exp:b.exp;
-	//double thexp=a.exp+b.exp;
 
-	primitive an=a,bn=b;
-	if(targeta) an.ang[dim]-=1;
-	else bn.ang[dim]-=1;
+	int anx=0;
+	while(np[0].ang[anx]==0){anx+=1;}
 
-	primitive ad=an,bd=bn;
-	ad.ang[dim]-=1;
-	bd.ang[dim]-=1;
+	np[0]=np[0].r(anx);
 
-	double val=(P(dim)-(targeta?A:B)(dim))*computeOverlap_el(an,bn)+
-		1.0/(2.0*sm)*an.ang[dim]*computeOverlap_el(ad,bn)+
-		1.0/(2.0*sm)*bn.ang[dim]*computeOverlap_el(an,bd);
-
-	precalcOverlap[hv]=val;
-
-	return val;
+	return (P(anx)-A(anx))*computeOverlap_el(np[0],np[1])
+		+1.0/(2.0*xi)*(double)np[0].ang[anx]*computeOverlap_el(np[0].r(anx),np[1])
+		+1.0/(2.0*xi)*(double)np[1].ang[anx]*computeOverlap_el(np[0],np[1].r(anx));
 }
 
 double Integrals::computeKinetic_el(primitive a, primitive b){
 	if(a.l()<0||b.l()<0){
 		return 0;
 	}
-	double sm=a.exp+b.exp;
-	double rd=a.exp*b.exp/sm;
+
 	dmath::vec A=a.at.center,B=b.at.center;
-	dmath::vec P=(a.exp*A+b.exp*B)*(1.0/sm);
-	
-	if(a.l()==0 && b.l()==0){
-		dmath::vec diff=A-B;
-		double dt=diff*diff;
-		double over=computeOverlap_el(a,b);
-		return rd*(3-2*rd*dt)*over;
+	double xi=a.exp+b.exp;
+	double zeta=(1.0/xi)*a.exp*b.exp;
+
+	if(a.l()==0&&b.l()==0){
+		return zeta*(3.0-2.0*zeta*(A-B)*(A-B))*computeOverlap_el(a,b);
 	}
 
-	unsigned long hv=hash(std::vector<primitive>{a,b});
-	if(precalcKinetic.find(hv)!=precalcKinetic.end()) return precalcKinetic[hv];
+	dmath::vec P=(1.0/xi)*(a.exp*A+b.exp*B);
 
-	bool targeta=a.l()!=0;
-	int dim=0;
-	for(int i = 0; i < 3; i++){
-		if((targeta?a:b).ang[i]>0){
-			dim=i;
-			break;
-		}
+	std::vector<primitive> np{a,b};
+	if(a.l()==0){
+		std::swap(np[0],np[1]);
+		std::swap(A,B);
 	}
-	//double thexp=(targeta)?a.exp:b.exp;
-	
-	primitive an=a,bn=b;
-	if(targeta) an.ang[dim]-=1;
-	else bn.ang[dim]-=1;
 
-	primitive ad=an,bd=bn;
-	ad.ang[dim]-=1;
-	bd.ang[dim]-=1;
-	
-	precalcOverlap.clear();
-	double O1=computeOverlap_el((targeta)?a:an,(targeta)?bn:b);
-	//precalcOverlap.clear();
-	double O2=computeOverlap_el((targeta)?ad:an,(targeta)?bn:bd);
+	int anx=0;
+	while(np[0].ang[anx]==0){anx+=1;}
 
-	double val=(P(dim)-(targeta?A:B)(dim))*computeKinetic_el(an,bn)+
-			1.0/(2.0*sm)*an.ang[dim]*computeKinetic_el(ad,bn)+
-			1.0/(2.0*sm)*bn.ang[dim]*computeKinetic_el(an,bd)+
-			2.0*rd*(O1-1.0/(2.0*(targeta?a.exp:b.exp))*(targeta?an:bn).ang[dim]*O2);
-	precalcKinetic[hv]=val;
-	return val;
+	np[0]=np[0].r(anx);
+
+	return (P(anx)-A(anx))*computeKinetic_el(np[0],np[1])
+		+1.0/(2.0*xi)*np[0].ang[anx]*(computeKinetic_el(np[0].r(anx),np[1]))
+		+1.0/(2.0*xi)*np[1].ang[anx]*(computeKinetic_el(np[0],np[1].r(anx)))
+		+2.0*zeta*(computeOverlap_el(np[0].u(anx),np[1])
+				-1.0/(2.0*np[0].exp)*np[0].ang[anx]*computeOverlap_el(np[0].r(anx),np[1]));
 }
 
 double Integrals::computePotential_el(primitive a, primitive b, int aux, Atom at){
 	if(a.l()<0||b.l()<0){
 		return 0;
 	}
-	double sm=a.exp+b.exp;
-	double rd=a.exp*b.exp/sm;
-	dmath::vec A=a.at.center,B=b.at.center;
-	dmath::vec P=(a.exp*A+b.exp*B)*(1.0/sm);
-	dmath::vec C=at.center;
-	if(a.l()==0 && b.l()==0){
-		dmath::vec diff=P-C;
-		double dt=diff*diff;
-		double U=sm*dt;
-		return 2.0*std::sqrt(sm/mypi)*computeOverlap_el(a,b)*Fa(aux,U,0.000001);
-	}
-	unsigned long hv=hash(std::vector<primitive>{a,b},aux);
-	if(precalcPotential.find(hv)!=precalcPotential.end())return precalcPotential[hv];
-
-	bool targeta=a.l()!=0;
-	int dim=0;
-	for(int i = 0; i < 3; i++){
-		if((targeta?a:b).ang[i]>0){
-			dim=i;
-			break;
-		}
-	}
-	//double thexp=(targeta)?a.exp:b.exp;
-
-	primitive an=a,bn=b;
-	if(targeta) an.ang[dim]-=1;
-	else bn.ang[dim]-=1;
-
-	primitive ad=an,bd=bn;
-	ad.ang[dim]-=1;
-	bd.ang[dim]-=1;
 	
-	double val=(P(dim)-(targeta?A:B)(dim))*computePotential_el(an,bn,aux,at)-(P(dim)-C(dim))*computePotential_el(an,bn,aux+1,at)+
-		1.0/(2.0*sm)*an.ang[dim]*(computePotential_el(ad,bn,aux,at)-computePotential_el(ad,bn,aux+1,at))+
-		1.0/(2.0*sm)*bn.ang[dim]*(computePotential_el(an,bd,aux,at)-computePotential_el(an,bd,aux+1,at));
-	precalcPotential[hv]=val;
-	return val;
+	dmath::vec A=a.at.center, B=b.at.center;
+
+	double xi = a.exp+b.exp;
+	dmath::vec P=(1.0/xi)*(a.exp*A+b.exp*B),
+		C=at.center;
+	double U=xi*(P-C)*(P-C);
+
+	//std::cout << "POTENTIAL: " << xi << " "<< aux << " " << fcalc.Fn(aux,U)<< " " << 
+	//	a.exp << " " << b.exp << " : "<<
+	//	A << "/////"<<B<<std::endl;
+	//std::cout << a.exp << " " << b.exp << " (" << A << ") : (" << B << ") : (" << P <<")"<< std::endl;
+	if(a.l()==0&&b.l()==0){
+		return 2.0*std::sqrt(xi/mypi)*computeOverlap_el(a,b)*fcalc.Fn(aux,U);
+	}
+
+	std::vector<primitive> np{a,b};
+	if(a.l()==0){
+		std::swap(np[0],np[1]);
+		std::swap(A,B);
+	}
+
+	int anx=0;
+	while(np[0].ang[anx]==0){anx+=1;}
+
+	np[0]=np[0].r(anx);
+
+	return (P(anx)-A(anx))*computePotential_el(np[0],np[1],aux,at)
+		-(P(anx)-C(anx))*computePotential_el(np[0],np[1],aux+1,at)
+		+1.0/(2.0*xi)*np[0].ang[anx]*(computePotential_el(np[0].r(anx),np[1],aux,at)
+				-computePotential_el(np[0].r(anx),np[1],aux+1,at))
+		+1.0/(2.0*xi)*np[1].ang[anx]*(computePotential_el(np[0],np[1].r(anx),aux,at)
+				-computePotential_el(np[0],np[1].r(anx),aux+1,at));
 }
 
-double Integrals::computeERI_el(primitive a, primitive b, primitive c, primitive d, int aux){
+double Integrals::computeERI_el(primitive a, primitive b, primitive c, primitive d, int aux,std::vector<int> &cr){
 	if(a.l()<0 || b.l()<0 || c.l()<0||d.l()<0) return 0.0;
 
-	std::vector<primitive> eriprims{a,b,c,d};
+	std::vector<primitive> prims{a,b,c,d};
+		
+	double xi=a.exp+b.exp;
+	double zeta=a.exp*b.exp/xi;
+	double eta=c.exp+d.exp;
 
-	std::vector<dmath::vec> vecvec{a.at.center,b.at.center,c.at.center,d.at.center};
+	double rho=xi*eta/(xi+eta);
 
-	double sm=a.exp+b.exp;
-	double rd=a.exp*b.exp/sm;
-	double nu=c.exp+d.exp;
-	double rho=sm*nu/(sm+nu);
+	dmath::vec P=(1.0/xi)*(a.exp*a.at.center+b.exp*b.at.center);
+	dmath::vec Q=(1.0/eta)*(c.exp*c.at.center+d.exp*d.at.center);
+	dmath::vec W=(1.0/(xi+eta))*(xi*P+eta*Q);
 
-	dmath::vec P=(1.0/sm)*(a.exp*vecvec[0]+b.exp*vecvec[1]);
-	dmath::vec Q=(1.0/nu)*(c.exp*vecvec[2]+d.exp*vecvec[3]);
-	dmath::vec W=(1.0/(sm+nu))*(sm*P+nu*Q);
+	double T=rho*(P-Q)*(P-Q);
 
-	dmath::vec pqdiff=P-Q;
-	double pqdot=pqdiff*pqdiff;
-
-	double fullnorm=1.0;
-	//for(int i = 0; i < 4; i++) fullnorm*=eriprims[i].norm;
+	if(verbose){
+		std::cout << a.l() << " " << b.l() << " " << c.l() << " " << d.l() <<std::endl;
+	}
 
 	if(a.l()==0 && b.l()==0 && c.l()==0 && d.l()==0){
-		return fullnorm*std::pow(sm+nu,-1.0/2.0)*K(a.exp,b.exp,vecvec[0],vecvec[1])*K(c.exp,d.exp,vecvec[2],vecvec[3])*Fa(aux,rho*pqdot,0.0000001);
+		double k1=Ks[cr[0]][cr[1]][cr[4]][cr[5]],
+		       k2=Ks[cr[2]][cr[3]][cr[6]][cr[7]];
+		return 1.0/std::sqrt(xi+eta)*k1*k2*fcalc.Fn(aux,T);
 	}
 
-	unsigned long hv=hash(eriprims,aux);
-	if(precalcERI.find(hv)!=precalcERI.end())return precalcERI[hv];
+	int itx=0;
+	while(prims[itx].l()==0){itx+=1;}
+	int anx=0;
+	while(prims[itx].ang[anx]==0){anx+=1;}
 
-	int target=-1;
-	for(int i=0; i < eriprims.size();i++){
-		if(eriprims[i].l()!=0) {
-			target=i;
-			break;
-		}
+	//double nxi=(itx>=2)?eta:xi;
+	//double neta=(itx>=2)?xi:eta;
+	dmath::vec V1=P, V2=Q;
+	std::vector<primitive> np=prims;
+	if(itx>=2){
+		std::swap(xi,eta);
+		std::swap(np[0],np[2]);
+		std::swap(np[1],np[3]);
+		std::swap(V1,V2);
 	}
-	int dim =-1;
-	for(int i = 0; i < 3; i++){
-		if(eriprims[target].ang[i]!=0){
-			dim=i;
-			break;
-		}
+	if(itx%2==1){
+		std::swap(np[0],np[1]);
+		//std::swap(np[2],np[3]);
 	}
+	dmath::vec Acen=np[0].at.center;
 
-	std::vector<primitive> pn=eriprims;
-	pn[target].ang[dim]-=1;
+	np[0]=np[0].r(anx);
 
-	std::vector<primitive> pd=pn;
-	for(int i = 0; i < pd.size();i++){
-		pd[i].ang[dim]-=1;
-	}
-
-	dmath::vec v1=(target<2)?P:Q, v2=(target<2)?Q:P;
-	double s1=(target<2)?sm:nu, s2=(target<2)?nu:sm;
-
-	int offtarget=(target+1)%2+target/2;
-	int opptarget=target%2+(target/2+1)%2;
-	int oppofftarget=(opptarget+1)%2+opptarget/2;
-
-	//Not finished yet
-	double val=(v1(dim)-vecvec[target](dim))*computeERI_el(pn[0],pn[1],pn[2],pn[3],aux)+
-		(W(dim)-v1(dim))*computeERI_el(pn[0],pn[1],pn[2],pn[3],aux+1)+
-		1.0/(2.0*s1)*pn[(target<2)?0:2].ang[dim]*(
-			((target<2)?computeERI_el(pd[0],pn[1],pn[2],pn[3],aux):computeERI_el(pn[0],pn[1],pd[2],pn[3],aux))-
-			rho/s1*((target<2)?computeERI_el(pd[0],pn[1],pn[2],pn[3],aux+1):computeERI_el(pn[0],pn[1],pd[2],pn[3],aux+1))
-			)+
-		1.0/(2.0*s1)*pn[(target<2)?1:3].ang[dim]*(
-			((target<2)?computeERI_el(pn[0],pd[1],pn[2],pn[3],aux):computeERI_el(pn[0],pn[1],pn[2],pd[3],aux))-
-			rho/s1*((target<2)?computeERI_el(pn[0],pd[1],pn[2],pn[3],aux+1):computeERI_el(pn[0],pn[1],pn[2],pd[3],aux+1))
-			)+
-		1.0/(2*(sm+nu))*pn[(target<2)?2:0].ang[dim]*(
-				(target<2)?computeERI_el(pn[0],pn[1],pd[2],pn[3],aux+1):computeERI_el(pd[0],pn[1],pn[2],pn[3],aux+1))+
-		1.0/(2*(sm+nu))*pn[(target<2)?3:1].ang[dim]*(
-				(target<2)?computeERI_el(pn[0],pn[1],pn[2],pd[3],aux+1):computeERI_el(pn[0],pd[1],pn[2],pn[3],aux+1));
-
-	precalcERI[hv]=val;
-	return val;
-
+	return (V1(anx)-Acen(anx))*computeERI_el(np[0],np[1],np[2],np[3],aux,cr)
+		+(W(anx)-V1(anx))*computeERI_el(np[0],np[1],np[2],np[3],aux+1,cr)
+		+1.0/(2.0*xi)*np[0].ang[anx]*(computeERI_el(np[0].r(anx),np[1],np[2],np[3],aux,cr)
+						-rho/xi*computeERI_el(np[0].r(anx),np[1],np[2],np[3],aux+1,cr))
+		+1.0/(2.0*xi)*np[1].ang[anx]*(computeERI_el(np[0],np[1].r(anx),np[2],np[3],aux,cr)
+						-rho/xi*computeERI_el(np[0],np[1].r(anx),np[2],np[3],aux+1,cr))
+		+1.0/(2.0*(xi+eta))*np[2].ang[anx]*computeERI_el(np[0],np[1],np[2].r(anx),np[3],aux+1,cr)
+		+1.0/(2.0*(xi+eta))*np[3].ang[anx]*computeERI_el(np[0],np[1],np[2],np[3].r(anx),aux+1,cr);
 }
 
 unsigned long Integrals::hash(std::vector<primitive> orbs,int aux){
@@ -351,21 +313,8 @@ unsigned long Integrals::hash(std::vector<primitive> orbs,int aux){
 	return hashv;
 }
 
-double Integrals::Fa(int m, double a, double T){
-	if(a<0.0000000001)return 1.0;
-	double base=std::exp(-a);
-	double diff=2.0*T;
-	double sm=0.0;
-	for(int k = 0; diff>T&&k<100;k++){
-		double ism=base*sm;
-		sm+=dmath::dfactorial2(2*m-1)*std::pow(2.0*a,(double)k)/dmath::dfactorial2(2*m+2*k+1);
-		diff=std::abs(ism-sm*base);
-	}
-	return base*sm;
-}
-
 double Integrals::K(double sa, double sb, dmath::vec v1, dmath::vec v2){
-	dmath::vec diff=v2-v1;
+	dmath::vec diff=v1-v2;
 	double dot = diff*diff;
 
 	return std::sqrt(2)*std::pow(mypi,5.0/4.0)/(sa+sb)*std::exp(-sa*sb/(sa+sb)*dot);
@@ -387,5 +336,21 @@ std::array<int,4> Integrals::getcord(int a, int b, int c, int d){
 	else if(cd[3]>cd[2]) std::swap(cd[2],cd[3]);
 	
 	return cd;
+}
+
+void Integrals::precalcK(){
+	Ks.resize(orbs.size());
+	for(int a = 0; a < orbs.size(); a++){
+	Ks[a].resize(orbs.size());
+	for(int b = 0; b < orbs.size(); b++){
+		Ks[a][b].resize(orbs[a].contraction.size());
+		for(int i = 0; i < orbs[a].contraction.size(); i++){
+		Ks[a][b][i].resize(orbs[b].contraction.size());
+		for(int j = 0; j < orbs[b].contraction.size(); j++){
+			Ks[a][b][i][j]=K(orbs[a].contraction[i].exp,
+					orbs[b].contraction[j].exp,
+					orbs[a].at.center,orbs[b].at.center);
+		}}
+	}}	
 }
 

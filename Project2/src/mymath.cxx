@@ -1,5 +1,9 @@
 #include "mymath.h"
 #include <cmath>
+#include <fstream>
+#include <string>
+#include <iomanip>
+#include <sstream>
 
 
 void dmath::mat::cSize(int i, int j){
@@ -32,14 +36,17 @@ dmath::mat dmath::mat::Identity(int i, int j){
 }
 
 std::ostream & dmath::operator<<(std::ostream & os,dmath::vec & v){
-	for(int i = 0; i < v.vals.size(); i++) os<<v(i)<<" ";
+	for(int i = 0; i < v.vals.size(); i++) os<<std::fixed << std::setprecision(8)<<v(i)<<" ";
 	return os;
 }
 
 std::ostream & dmath::operator<<(std::ostream & os,dmath::mat & m){
 	for(int i = 0; i < m.r; i++){
 		for(int j = 0; j < m.c; j++){
-			os << m(i,j) << " ";
+			if(m(i,j)>=0.0){
+				os<< " ";
+			}
+			os << std::fixed << std::setprecision(8)<<m(i,j) << " ";
 		}
 		os<<std::endl;
 	}
@@ -120,7 +127,7 @@ dmath::mat dmath::mat::operator*(dmath::mat m){
 	return mn;
 }
 
-dmath::mat dmath::JacobiDiagonalizer::diagonalize(dmath::mat m, double threshold, dmath::mat & U){
+dmath::mat dmath::JacobiDiagonalizer::diagonalize(dmath::mat m, double threshold, dmath::mat & U,bool sort){
 	U=dmath::mat::Identity(m.r,m.c);
 	dmath::mat d = dmath::mat::Zero(m.r,m.c);
 
@@ -131,10 +138,28 @@ dmath::mat dmath::JacobiDiagonalizer::diagonalize(dmath::mat m, double threshold
 	while(std::abs(m(maxr,maxc))>threshold && citer++<maxiter){
 		jacobiRotate(m,U);
 		findMaxUpperTriangle(m);
+
 	}
 
 	if(citer>=maxiter) std::cout << "TIMEOUT\n";
-	U=U.transpose();
+	//U=U.transpose();
+
+	if(sort){
+	for(int i = 0; i < m.r; i++){
+		int li=i;
+		for(int j = i+1; j < m.r; j++){
+			if(m(j,j)<m(li,li)){li=j;}
+		}
+		//std::cout << "Lowest Eigen: " << li << " "<< m(li,li) << std::endl;
+		if(li==i) continue;
+		std::swap(m(i,i),m(li,li));
+		for(int k = 0; k<U.r; k++){
+			//std::cout << U(i,k) << " " << U(li,k) << std::endl;
+			std::swap(U(k,i),U(k,li));
+		}
+	}
+	}
+
 	return m;
 }
 
@@ -152,6 +177,28 @@ void dmath::JacobiDiagonalizer::findMaxUpperTriangle(dmath::mat & m){
 	}
 }
 
+void dmath::JacobiDiagonalizer::jacobiRotate(dmath::mat & m, dmath::mat & U){
+	double angle = mypi/4.0;
+	if(std::abs(m(maxr,maxr)-m(maxc,maxc))>0.0000001){
+		angle=.5*std::atan(2.0*m(maxr,maxc)/(m(maxc,maxc)-m(maxr,maxr)));
+	}
+
+	double c=std::cos(angle),
+		s=std::sin(angle);
+
+	dmath::mat G{dmath::mat::Identity(m.r,m.c)};
+	G(maxr,maxr)=c;
+	G(maxc,maxc)=c;
+	G(maxr,maxc)=s;
+	G(maxc,maxr)=-s;
+	dmath::mat test=G.transpose()*G;
+	//std::cout << "GMAT:\n" << G << std::endl << test<<std::endl;
+
+	m=G.transpose()*m*G;
+	U=U*G;
+}
+
+/*
 //I'm confident this can be written 1000X better
 void dmath::JacobiDiagonalizer::jacobiRotate(dmath::mat & m, dmath::mat & U){
 	double c,s;
@@ -206,4 +253,59 @@ void dmath::JacobiDiagonalizer::jacobiRotate(dmath::mat & m, dmath::mat & U){
 	}
 
 }
+*/
+
+void dmath::FnCalc::load(std::string tabfile){
+	std::ifstream infile(tabfile);
+	if(!infile){
+		std::cout << "TABULATED FILE NOT FOUND!\n";
+		return;
+	}
+	tabulated.resize(25);
+	std::string linein;
+	while(!infile.eof()){
+		std::getline(infile,linein);
+		if(linein=="")continue;
+
+		std::stringstream ss(linein);
+		double v=0.0;
+		ss >> v;
+		for(int i = 0; i < tabulated.size(); i++){
+			ss>>v;
+			tabulated[i].push_back(v);
+		}
+	}
+	infile.close();
+
+	/*
+	for(int i = 0; i < tabulated[0].size(); i++){
+		std::cout << 0.05*i << " ";
+		for(int j = 0; j < tabulated.size(); j++){
+			std::cout << tabulated[j][i] << " ";
+		}
+		std::cout << std::endl;
+	}
+	*/
+}
+
+double dmath::FnCalc::Fn(int n, double T){
+	if(T<12.0){
+		if(n>16) return 0.0;
+		int Tstari=(int)((T+0.025)/0.05);
+
+		//std::cout << Tstari << std::endl; 
+
+		double Tstar=(double)Tstari*0.05;
+		double sum = 0.0;
+		for(int k = 0; k <= 6; k++){
+			sum+=tabulated[k+n][Tstari]*std::pow(Tstar-T,k)/dmath::dfactorial(k);
+		}
+		return sum;
+	}
+	else{
+		return dmath::dfactorial2(2*n-1)/(2.0*std::pow(2.0*T,(double)n))*std::sqrt(mypi/T);
+	}
+	return 0.0;
+}
+
 

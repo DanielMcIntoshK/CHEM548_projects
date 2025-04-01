@@ -2,6 +2,7 @@
 #define MYMATH__H_
 #include <vector>
 #include <iostream>
+#include <string>
 #define mypi 3.1415926
 
 namespace dmath{
@@ -99,7 +100,7 @@ namespace dmath{
 	public:
 		JacobiDiagonalizer(){}
 		
-		dmath::mat diagonalize(dmath::mat m, double threshold,dmath::mat & U);
+		dmath::mat diagonalize(dmath::mat m, double threshold,dmath::mat & U,bool sort=false);
 
 		void findMaxUpperTriangle(dmath::mat & m);
 		void jacobiRotate(dmath::mat & m, dmath::mat & U);
@@ -116,6 +117,16 @@ namespace dmath{
 
 	dmath::mat operator*(dmath::mat m, double s);
 	dmath::mat operator*(double s, dmath::mat m);
+
+	class FnCalc{
+	public:
+		void load(std::string tabfile);
+
+		double Fn(int n, double T);
+	
+		std::vector<std::vector<double>> tabulated;
+
+	};
 }
 
 

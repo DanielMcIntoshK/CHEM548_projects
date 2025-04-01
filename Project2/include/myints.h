@@ -26,12 +26,14 @@ public:
 	molecule mol;
 
 	double getERI(int a, int b, int c, int d);
+
+	dmath::FnCalc fcalc;
 private:
 	double computeOverlap_el(primitive a, primitive b);
 	double computeKinetic_el(primitive a, primitive b);
 	double computePotential_el(primitive a, primitive b,int aux,Atom at);
 
-	double computeERI_el(primitive a, primitive b, primitive c, primitive d, int aux);
+	double computeERI_el(primitive a, primitive b, primitive c, primitive d, int aux,std::vector<int> & cr);
 
 	std::map<unsigned long,double> precalcOverlap;
 	std::map<unsigned long,double> precalcKinetic;
@@ -43,8 +45,11 @@ private:
 	std::array<int,4> getcord(int a, int b, int c, int d);
 
 	unsigned long hash(std::vector<primitive> orbs,int aux=0);
-	double Fa(int m, double a, double T);
 	double K(double sa, double sb, dmath::vec v1, dmath::vec v2);
+	void precalcK();
+
+	std::vector<std::vector<std::vector<std::vector<double>>>> Ks;
+	bool verbose=false;
 };
 
 

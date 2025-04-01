@@ -16,6 +16,7 @@ void molecule::read(std::string filename){
 
 	while(!in.eof()){
 		std::getline(in,inputline);
+		std::cout << "LINE: " << inputline << std::endl;
 		if(in.eof())break;
 		if(inputline.find('!')!=std::string::npos)continue;
 
@@ -31,7 +32,7 @@ void molecule::read(std::string filename){
 			countunit>>mcount>>unit;
 
 			double unitconvert=1.0;
-			if(unit=="ANGSTROM") unitconvert=1.88725822;
+			if(unit=="ANGSTROM") unitconvert=1.8897259886;
 
 			for(int i = 0; i < mcount; i++){
 				std::string gline;
@@ -89,12 +90,15 @@ void molecule::read(std::string filename){
 
 void molecule::buildbasis(std::string filename){
 	std::ifstream in(filename);
+	std::cout << "BUILDING BASIS\n";
 
 	while(!in.eof()){
 		std::string line;
 		std::getline(in,line);
+		
+		if(line =="") continue;
+
 		std::stringstream sline(line);
-		std::cout << "READING BASIS FILE: " << line <<std::endl;
 
 		std::string atname;
 		int primscounttotal, orbscount;
@@ -124,6 +128,7 @@ void molecule::buildbasis(std::string filename){
 
 				sorbinfo>>otype>>primcount;
 
+				double factor=1.0;
 				std::string priminfo;
 				for(int i = 0; i < primcount; i++){
 					std::getline(in,priminfo);
@@ -158,7 +163,7 @@ void molecule::buildbasis(std::string filename){
 				}break;
 				case 'D':{
 					for(int i = 0; i < 3; i++){
-					for(int j = 0; j < 3; j++){
+					for(int j = i; j < 3; j++){
 						atOrb ob;
 						ob.contraction=prims;
 						for(auto & a: ob.contraction){
@@ -170,8 +175,8 @@ void molecule::buildbasis(std::string filename){
 				};break;
 				case 'F':{
 					for(int i = 0; i < 3; i++){
-					for(int j = 0; j < 3; j++){
-					for(int k = 0; k < 3; k++){
+					for(int j = i; j < 3; j++){
+					for(int k = j; k < 3; k++){
 						atOrb ob;
 						ob.contraction=prims;
 						for(auto & a: ob.contraction){
@@ -185,10 +190,13 @@ void molecule::buildbasis(std::string filename){
 				}
 				for(auto &a: orbs){
 					for(auto &o: a.contraction){
-						o.norm=std::pow(2*o.exp/mypi,3.0/4.0)*std::pow(4.0*o.exp,o.l()/2.0)*
-							std::sqrt(dmath::factorial2(2*o.ang[0]-1)*
-								dmath::factorial2(2*o.ang[1]-1)*
-								dmath::factorial2(2*o.ang[2]-1));
+						o.norm=std::pow(2.0*o.exp/mypi,3.0/4.0)*std::pow(4.0*o.exp,(double)o.l()/2.0)*
+						       std::pow(dmath::dfactorial2(2*o.ang[0]-1)*
+								dmath::dfactorial2(2*o.ang[1]-1)*
+								dmath::dfactorial2(2*o.ang[2]-1),-1.0/2.0);
+						if(o.l()==2&&(o.ang[0]==0 ||o.ang[1]==0||o.ang[2]==0)){
+							o.norm/=std::sqrt(3);
+						}
 					}
 				}
 
@@ -211,6 +219,16 @@ void molecule::buildbasis(std::string filename){
 			}
 		}
 	}
+}
+
+void molecule::swapbs(std::vector<int> swapvec){
+	if(swapvec.size()!=orbitals.size()) return;
+
+	std::vector<atOrb> neworbs;
+	for(int i = 0; i < swapvec.size(); i++){
+		neworbs.push_back(orbitals[swapvec[i]]);
+	}
+	orbitals=neworbs;
 }
 
 std::map<std::string,int> Atom::elements=std::map<std::string,int>{{"H",1},{"He",2},{"Li",3},{"Be",4},{"B",5},{"C",6},

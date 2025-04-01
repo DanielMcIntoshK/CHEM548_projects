@@ -1,0 +1,77 @@
+\documentclass{article}
+
+\input{structure.tex} 
+
+\title{CHEM 548 Project 2\\Hartree Fock using Obara Saika Integrals}
+
+\author{Daniel McIntosh} 
+
+
+\begin{document}
+\maketitle
+
+\section{Code Description}
+
+For Project 2 I implemented the Alternative Project and generalized the Hartree-Fock program to include basis functions of higher angular momentum. I did this by implementing the recursive method found in the paper by Obara and Saika. Theoretically this method can be used to calculate integrals of gaussian orbitals with any angular momentum, although I did not test my implementation past D orbitals.
+
+All implementation of this project can be found in the Project2 folder of the github repository:
+
+https://github.com/DanielMcIntoshK/CHEM548\_projects
+
+The code can be build by calling "make" from the Project2 directory, and run with the command "bin/Project2 [inputfile]". Some example input files have been included in the "inputs" folder. Also a number of basis sets can be found in the root directory of the repository. 
+
+The output should include the overlap, kinetic, and electron-nuclear attraction matrices, and then the info of the Hartree-Fock calculation.
+
+The recursive method is simple with the only real challenge being the calculation of the auxiliary function:
+
+\begin{equation}
+F_n(T)=\int_0^1 t^{(2n)} e^{-T t^2}dt
+\end{equation}
+
+In order to calculate this I followed the same procedure as presented in Obara and Saika's paper. First I implemented a very accurate but slow grid based integral. I computed values of $F_n(T)$ for values of $T$ from $0.0$ to $12.0$ with a grid spacing of $\Delta T=0.05$ and for values of $n$ from $0$ to $24$. Then for values of $T$ less than $12.0$ I used the equation:
+
+\begin{equation}
+F_n(T)=\sum_{k=0}^6 F_{n+k}(T^*)(T^*-T)^k/k!
+\end{equation}
+
+and for values of $T$ greater than $12.0$:
+
+\begin{equation}
+F_n(T)\approx \frac{(2n-1)!!}{2(2T)^n}\left(\frac{\pi}{T}\right)^{1/2}
+\end{equation}
+
+Where $T^*$ is the closest interval of $0.05$ to $T$.
+
+The highest value of $n$ that will be used in calculating the integrals will be 4 times the maximum angular momentum used in the basis set. So by tabulating values up to $n=24$ this allows us to compute $F_n$ using the tabulated method up to $G$ orbitals.
+
+All matrix diagonalizations are done using an implementation of the Jacobi rotation algorithm.
+
+\section{Report}
+
+Hartree-Fock energy calculations were performed for $H_2$ and $H_2O$ using first the STO-3G basis set, then moving up to the 6-31G* basis which includes a D orbital for $H_2O$. 
+
+The integrals and final energy calculations were compared with my own previously implemented Hartree-Fock program which used the libint2 library for integrals. The results for both integrals and the energy were the same using this implementation of the Obara Saika method as these other programs. Small differences in the computed energies can be attributed most likely to imprecision in my implementation of $F_n(T)$, or my diagonalization method. Comparisons can be found in Table \ref{tab:hfcomp}.
+
+One thing to note is this implementation is very slow. There are a number of ways to speed it up. The recursion algorithm recalculates a large number of the values. Caching values could help considerably. Also two body integrals over primitives that don't contribute much can be omitted. Also extending the range of the tabulated version of $F_n(T)$ could help. 
+
+There was one issue that I don't fully understand. In other computational programs when calculating $D$ orbitals the normalization constants for the angular momenta of $(1,1,0)$, $(1,0,1)$, and $(0,1,1)$ are different than expected. They are off by a factor of $3^{(-1/2)}$ from the formula given for the normalization constant in Obara and Saika. This factor is needed in order to get the SCF energy to properly converge although it does result in the overlap between these basis functions and their conjugates to be $1/3$ instead of unity.
+
+I'm not entirely sure why this is the case. To get a better understanding more calculations would need to be run extending into basis functions of higher angular momenta such as F orbitals.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|c|c|c|}
+\hline
+  & libint2 & Obara Saika\\
+ \hline
+ $H_2$ (STO-3G)    & -1.116759 &-1.116759 \\
+ $H_2$ (6-31G$^*$) & -1.126755 &-1.126755 \\
+ $H_2O$ (STO-3G)   & -74.96175 &-74.96177 \\
+ $H_2O$ (6-31G$^*$)& -76.01071 &-76.01071 \\
+ \hline
+ \end{tabular}
+ \caption{Comparison of Hartree-Fock Energies ($E_h$) to this implementation of Obara Saika to my previous Hartree-Fock implementation using libint2}
+ \label{tab:hfcomp}
+ \end{table}
+
+\end{document}

@@ -28,14 +28,18 @@ HF::result HF::restrictedHF(molecule & mol, Integrals & ic){
 	dmath::JacobiDiagonalizer jd;
 	dmath::mat U;
 	dmath::mat s=jd.diagonalize(S,0.00000001,U);
-	
+
+
 	for(int i = 0; i < s.r; i++) s(i,i)=1.0/std::sqrt(s(i,i));
-	dmath::mat X=U*s*U.transpose();
+	dmath::mat X = U*s*U.transpose();
 
 	dmath::mat H = T+V;
 
-	s=dmath::mat(0,0);
-	U=dmath::mat(0,0);
+	std::cout << "CORE HAMILTONIAN\n" << H << std::endl;
+	std::cout << "XMat:\n"<<X<<std::endl;
+
+	//s=dmath::mat(0,0);
+	//U=dmath::mat(0,0);
 
 	dmath::mat D = dmath::mat::Zero(H.r,H.c);
 
@@ -48,23 +52,26 @@ HF::result HF::restrictedHF(molecule & mol, Integrals & ic){
 
 	dmath::mat C,G,F,E;
 
+	std::cout << "STARTING SCF\n";
 	do{
 		if(++iter>maxiter){
-			std::cout << "SCF FAILED TO CONVERGE IN " << iter << "STEPS" << std::endl;
+			std::cout << "SCF FAILED TO CONVERGE IN " << iter-1 << "STEPS" << std::endl;
+			break;
 		}
 
 		double ehf_last=ehf;
 		dmath::mat D_last = D;
-
+		
 		G=computeGMat(D,ic);
 		F=H+G;
 
 		dmath::mat Fx=X.transpose()*F*X;
 
 		dmath::mat Cx;
-		E=jd.diagonalize(Fx, 0.0000001,Cx);
-
+		E=jd.diagonalize(Fx, 0.0000001,Cx,true);
+		//Cx=-Cx;
 		C=X*Cx;
+
 
 		int ndocc=res.nelec/2;
 		dmath::mat Ct=C.transpose();

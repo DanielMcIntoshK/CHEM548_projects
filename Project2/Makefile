@@ -3,10 +3,10 @@ OBJ_DIR := obj
 BIN_DIR := bin
 INC_DIR := include
 LIN_INC := /usr/include
-EXE := Project1
+EXE := Project2
 SRC := $(wildcard $(SRC_DIR)/*.cxx)
 OBJ := $(SRC:$(SRC_DIR)/%.cxx=$(OBJ_DIR)/%.o)
-CPPFLAGS := -I$(INC_DIR)
+CPPFLAGS := -I$(INC_DIR) 
 
 all: $(EXE)
 
